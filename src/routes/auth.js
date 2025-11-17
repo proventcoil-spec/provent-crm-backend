@@ -106,3 +106,15 @@ router.get('/users', authRequired, requireRole(['admin']), async (req, res) => {
 });
 
 export default router;
+
+// TEMP: dev route to generate bcrypt hash for a password
+router.get('/dev/hash', async (req, res) => {
+  try {
+    const password = 'Provent2024!'; // הסיסמה שאתה רוצה
+    const hash = await bcrypt.hash(password, 10);
+    return res.json({ password, hash });
+  } catch (err) {
+    console.error('Hash error:', err);
+    return res.status(500).json({ error: 'Hash error' });
+  }
+});
