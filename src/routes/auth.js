@@ -19,7 +19,7 @@ router.post('/login', async (req, res) => {
     const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
     const user = rows[0];
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-    const ok = await bcrypt.compare(password, user.password_hash);
+    const ok = await bcrypt.compare(password, user.password);
     if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
 
     const token = jwt.sign(
