@@ -11,36 +11,67 @@ const router = express.Router();
 
 // Login
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password required' });
-  }
   try {
-    const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
-    const user = rows[0];
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-    const ok = await bcrypt.compare(password, user.password);
-    if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+    const { email, password } = req.body;
 
+    // הגנה – אם אחד מהשדות חסר
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password required' });
+    }
+
+    // mysql2/promise מחזיר [rows, fields]
+    const [rows] = await pool.query(
+      'SELECT * FROM users WHERE email = ?',
+      [email]
+    );
+
+    // אם אין משתמש כזה
+    if (!rows || rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const user = rows[0];            // המשתמש מה-DB
+    const hash = user.password;      // שם העמודה בטבלה הוא password
+
+    // בדיקת הגנה – אם מסיבה כלשהי אין סיסמה בטבלה
+    if (!hash) {
+      console.error('User has no password in DB:', user);
+      return res.status(500).json({ error: 'Server password error' });
+    }
+
+    // השוואת הסיסמה שהוכנסה ל-hash שב-DB
+    const ok = await bcrypt.compare(password, hash);
+
+    if (!ok) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // אם הכל טוב – יוצרים טוקן
     const token = jwt.sign(
-      { id: user.id, role: user.role, full_name: user.full_name },
+      {
+        id: user.id,
+        role: user.role,
+        full_name: user.full_name,
+      },
       process.env.JWT_SECRET,
       { expiresIn: '12h' }
     );
-    res.json({
+
+    return res.json({
       token,
       user: {
         id: user.id,
         full_name: user.full_name,
         email: user.email,
-        role: user.role
-      }
+        role: user.role,
+      },
     });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Server error' });
+  } catch (err) {
+    console.error('Login error:', err);
+    return res.status(500).json({ error: 'Server error' });
   }
 });
+
 
 // Create user (admin only)
 router.post('/users', authRequired, requireRole(['admin']), async (req, res) => {
