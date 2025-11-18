@@ -1,6 +1,9 @@
+// server.js – Provent CRM Backend
+
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+
 import authRoutes from './src/routes/auth.js';
 import employeesRoutes from './src/routes/employees.js';
 
@@ -8,11 +11,11 @@ dotenv.config();
 
 const app = express();
 
-// basic middlewares
+// Middlewares
 app.use(cors());
 app.use(express.json());
 
-// health checks
+// Health check
 app.get('/', (req, res) => {
   res.send('Provent CRM API is running');
 });
@@ -21,7 +24,7 @@ app.get('/api/test', (req, res) => {
   res.json({ ok: true, message: 'API test ok' });
 });
 
-// routes
+// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeesRoutes);
 
