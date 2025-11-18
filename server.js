@@ -1,3 +1,4 @@
+import employeesRouter from './src/routes/employees.js';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -31,3 +32,4 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`API listening on port ${PORT}`);
 });
+app.use('/api/employees', employeesRouter);
