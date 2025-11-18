@@ -1,32 +1,38 @@
-import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-
-import authRouter from './src/routes/auth.js';
-import employeesRouter from './src/routes/employees.js';
+// src/server.js
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import authRoutes from "./routes/auth.js";
 
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3306;
 
-app.use(cors());
+// לאפשר פרונט מקומי + הדומיין שלך
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://crm-pro.provent.co.il",
+    ],
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 
-// health check
-app.get('/', (req, res) => {
-  res.json({ status: 'ok', message: 'Provent CRM API' });
+// בדיקה פשוטה
+app.get("/api/test", (req, res) => {
+  res.json({ ok: true });
 });
 
-app.use('/api/auth', authRouter);
-app.use('/api/employees', employeesRouter);
+// ראוטים של לוגין
+app.use("/api/auth", authRoutes);
 
-// global error handler
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(500).json({ error: 'Server error' });
-});
+// כאן בעתיד נוסיף ראוטים לאירועים, לידים וכו'
+// app.use("/api/events", eventsRoutes);
 
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`API listening on port ${PORT}`);
 });
