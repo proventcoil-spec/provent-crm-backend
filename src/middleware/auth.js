@@ -1,34 +1,16 @@
-// src/middleware/auth.js
-import jwt from "jsonwebtoken";
+import mysql from "mysql2/promise";
+import dotenv from "dotenv";
 
-export function authRequired(req, res, next) {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1]; // "Bearer xxx"
+dotenv.config();
 
-  if (!token) {
-    return res.status(401).json({ message: "No token provided" });
-  }
+const pool = mysql.createPool({
+  host: process.env.DB_HOST,      // srv1016.hstgr.io
+  user: process.env.DB_USER,      // u894002499_provi  (אצלך)
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,  // u894002499_provi_crm
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
+});
 
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // { id, role }
-    next();
-  } catch (err) {
-    console.error("JWT error:", err.message);
-    return res.status(401).json({ message: "Invalid or expired token" });
-  }
-}
-
-export function requireRole(roles = []) {
-  const allowed = Array.isArray(roles) ? roles : [roles];
-
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    if (allowed.length && !allowed.includes(req.user.role)) {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-    next();
-  };
-}
+export default pool;
