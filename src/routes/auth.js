@@ -1,4 +1,3 @@
-// src/routes/auth.js
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -12,33 +11,36 @@ router.post("/login", async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ message: "חסר אימייל או סיסמה" });
+      return res
+        .status(400)
+        .json({ message: "Email and password are required" });
     }
 
     const [rows] = await pool.query(
-      "SELECT id, full_name, email, password_hash, role FROM users WHERE email = ? LIMIT 1",
+      "SELECT id, full_name, email, password_hash, role FROM users WHERE email = ?",
       [email]
     );
 
-    if (!rows.length) {
-      return res.status(401).json({ message: "אימייל או סיסמה שגויים" });
+    if (rows.length === 0) {
+      return res.status(401).json({ message: "Invalid email or password" });
     }
 
     const user = rows[0];
 
-    const isMatch = await bcrypt.compare(password, user.password_hash);
-    if (!isMatch) {
-      return res.status(401).json({ message: "אימייל או סיסמה שגויים" });
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) {
+      return res.status(401).json({ message: "Invalid email or password" });
     }
 
-    const payload = {
-      id: user.id,
-      role: user.role
-    };
-
-    const token = jwt.sign(payload, process.env.JWT_SECRET, {
-      expiresIn: "12h"
-    });
+    const token = jwt.sign(
+      {
+        id: user.id,
+        role: user.role,
+        full_name: user.full_name
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
 
     res.json({
       token,
@@ -50,9 +52,14 @@ router.post("/login", async (req, res) => {
       }
     });
   } catch (err) {
-    console.error("Login error:", err);
+    console.error("LOGIN ERROR:", err);
     res.status(500).json({ message: "Server error" });
   }
+});
+
+// בדיקה מהירה
+router.get("/test", (req, res) => {
+  res.json({ ok: true });
 });
 
 export default router;
