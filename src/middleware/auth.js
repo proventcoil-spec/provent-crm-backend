@@ -1,16 +1,33 @@
-import mysql from "mysql2/promise";
-import dotenv from "dotenv";
+import jwt from "jsonwebtoken";
 
-dotenv.config();
+export function authRequired(req, res, next) {
+  const authHeader = req.headers.authorization || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST,      // srv1016.hstgr.io
-  user: process.env.DB_USER,      // u894002499_provi  (אצלך)
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,  // u894002499_provi_crm
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-});
+  if (!token) {
+    return res.status(401).json({ message: "Missing token" });
+  }
 
-export default pool;
+  try {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      return res.status(500).json({ message: "JWT_SECRET is not configured" });
+    }
+
+    const decoded = jwt.verify(token, secret);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    console.error("JWT error:", err.message);
+    return res.status(401).json({ message: "Invalid or expired token" });
+  }
+}
+
+export function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    next();
+  };
+}
