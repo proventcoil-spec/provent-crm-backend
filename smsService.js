@@ -1,69 +1,76 @@
-// smsService.js
 const axios = require("axios");
 
 const SMS_API_URL = process.env.SMS_API_URL;
 const SMS_USERNAME = process.env.SMS_USERNAME;
-const SMS_USERNAME_FOR_TOKEN = process.env.SMS_USERNAME_FOR_TOKEN;
 const SMS_PASSWORD = process.env.SMS_PASSWORD;
+const SMS_USERNAME_FOR_TOKEN = process.env.SMS_USERNAME_FOR_TOKEN;
 
-if (!SMS_API_URL || !SMS_USERNAME || !SMS_USERNAME_FOR_TOKEN || !SMS_PASSWORD) {
-    console.log("⚠ SMS ENV missing");
-}
-
+// יצירת טוקן חדש מה-API
 async function getToken() {
-    try {
-        const xmlReq = `
-            <getApiToken>
-                <user>
-                    <username>${SMS_USERNAME}</username>
-                </user>
-                <username>${SMS_USERNAME_FOR_TOKEN}</username>
-                <action>new</action>
-            </getApiToken>
-        `;
+  const xml = `
+    <getApiToken>
+      <user>
+        <username>${SMS_USERNAME}</username>
+      </user>
+      <username>${SMS_USERNAME_FOR_TOKEN}</username>
+      <action>new</action>
+    </getApiToken>
+  `;
 
-        const response = await axios.post(SMS_API_URL, xmlReq, {
-            headers: { "Content-Type": "application/xml" }
-        });
+  const res = await axios.post(SMS_API_URL, xml, {
+    headers: { "Content-Type": "application/xml" }
+  });
 
-        const token = response.data.match(/<message>(.*?)<\/message>/);
+  const token = res.data.match(/<message>(.*?)<\/message>/)?.[1];
+  if (!token) throw new Error("Failed extracting token");
 
-        return token ? token[1] : null;
-    } catch (err) {
-        console.error("Token Error:", err.message);
-        return null;
-    }
+  return token;
 }
 
-async function sendSms(phone, message) {
+// בדיקת טוקן בלבד
+async function testSmsConnection() {
+  try {
     const token = await getToken();
-    if (!token) return { success: false, error: "Token failed" };
+    return { success: true, message: "Token OK", token: token };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
 
-    const xmlReq = `
-        <sendSms>
-            <user>
-                <username>${SMS_USERNAME}</username>
-                <password>${SMS_PASSWORD}</password>
-            </user>
-            <msg>
-                <recipient>${phone}</recipient>
-                <message>${message}</message>
-                <sender>PROVENT</sender>
-            </msg>
-            <token>${token}</token>
-        </sendSms>
+// שליחת SMS אמיתית
+async function sendSms(to, message) {
+  try {
+    const token = await getToken();
+
+    const xml = `
+      <sendSms>
+        <user>
+          <username>${SMS_USERNAME}</username>
+          <password>${SMS_PASSWORD}</password>
+        </user>
+        <msg>
+          <recipient>${to}</recipient>
+          <message>${message}</message>
+          <sender>PROVENT</sender>
+        </msg>
+        <token>${token}</token>
+      </sendSms>
     `;
 
-    try {
-        const response = await axios.post(SMS_API_URL, xmlReq, {
-            headers: { "Content-Type": "application/xml" }
-        });
+    const res = await axios.post(SMS_API_URL, xml, {
+      headers: { "Content-Type": "application/xml" }
+    });
 
-        return { success: true, response: response.data };
-    } catch (err) {
-        console.error("SMS Error:", err.message);
-        return { success: false, error: err.message };
-    }
+    return { success: true, response: res.data };
+
+  } catch (e) {
+    console.error("SMS ERROR:", e.message);
+    return { success: false, error: e.message };
+  }
 }
 
-module.exports = { sendSms };
+module.exports = {
+  getToken,
+  testSmsConnection,
+  sendSms
+};
