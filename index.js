@@ -11,10 +11,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || "CHANGE_ME_SECRET";
 
-// CORS – מאפשר גישה מה-CRM
+// CORS
 app.use(
   cors({
-    origin: true, // אפשר לשים ['https://crm.pro-net.pro'] אם תרצה לסגור
+    origin: true, // אפשר לסגור לדומיין ספציפי אם תרצה
   })
 );
 app.use(express.json());
@@ -44,6 +44,7 @@ async function ensureSchema() {
         full_name VARCHAR(255),
         role ENUM('owner','admin','team_manager','employee','client') NOT NULL DEFAULT 'employee',
         phone VARCHAR(30),
+        email VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
@@ -78,16 +79,30 @@ async function ensureSchema() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // משתמשי ברירת מחדל
+    // עובדים / ספקים
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS provent_crm_workers (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        full_name VARCHAR(255) NOT NULL,
+        username VARCHAR(100),
+        phone VARCHAR(30),
+        email VARCHAR(255),
+        type ENUM('employee','supplier') NOT NULL DEFAULT 'employee',
+        role ENUM('owner','admin','team_manager','employee') NOT NULL DEFAULT 'employee',
+        active TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
     const [rows] = await conn.query(
       "SELECT COUNT(*) AS cnt FROM provent_crm_users"
     );
     if (rows[0].cnt === 0) {
       await conn.query(`
-        INSERT INTO provent_crm_users (username, password, full_name, role)
+        INSERT INTO provent_crm_users (username, password, full_name, role, email)
         VALUES 
-          ('shlomi', 'Provent-2025', 'שלומי פרץ', 'owner'),
-          ('shimon', 'Provent-2025', 'שמעון אסרף', 'owner')
+          ('shlomi', 'Provent-2025', 'שלומי פרץ', 'owner', 'shlomi@provent.co.il'),
+          ('shimon', 'Provent-2025', 'שמעון אסרף', 'owner', 'shimon@provent.co.il')
       `);
       console.log(
         "Default users created: shlomi / shimon with password: Provent-2025"
@@ -115,7 +130,7 @@ function authMiddleware(req, res, next) {
   if (!token) {
     return res
       .status(401)
-      .json({ success: false, error: "Missing Authorization token" });
+      .json({ success: false, error: "Missing token" });
   }
 
   try {
@@ -129,14 +144,12 @@ function authMiddleware(req, res, next) {
   }
 }
 
-// ===== Routes בסיס =====
+// ===== בסיס =====
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Provent CRM backend is running" });
 });
 
 // ===== AUTH =====
-
-// התחברות
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { username, password } = req.body || {};
@@ -195,7 +208,6 @@ app.get("/api/auth/me", authMiddleware, (req, res) => {
 });
 
 // ===== LEADS API =====
-
 app.get("/api/leads", authMiddleware, async (req, res) => {
   try {
     const [rows] = await dbPool.query(
@@ -305,7 +317,6 @@ app.put("/api/leads/:id", authMiddleware, async (req, res) => {
 });
 
 // ===== CLIENTS API =====
-
 app.get("/api/clients", authMiddleware, async (req, res) => {
   try {
     const [rows] = await dbPool.query(
@@ -314,6 +325,23 @@ app.get("/api/clients", authMiddleware, async (req, res) => {
     res.json({ success: true, clients: rows });
   } catch (err) {
     console.error("GET /api/clients error:", err);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+app.get("/api/clients/:id", authMiddleware, async (req, res) => {
+  try {
+    const clientId = parseInt(req.params.id, 10);
+    const [rows] = await dbPool.query(
+      "SELECT id, name, phone, email, created_at FROM provent_crm_clients WHERE id = ? LIMIT 1",
+      [clientId]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ success: false, error: "Client not found" });
+    }
+    res.json({ success: true, client: rows[0] });
+  } catch (err) {
+    console.error("GET /api/clients/:id error:", err);
     res.status(500).json({ success: false, error: "Server error" });
   }
 });
@@ -340,23 +368,90 @@ app.post("/api/clients", authMiddleware, async (req, res) => {
   }
 });
 
-// ===== SMS API =====
+app.put("/api/clients/:id", authMiddleware, async (req, res) => {
+  try {
+    const clientId = parseInt(req.params.id, 10);
+    const { name, phone, email } = req.body || {};
 
-app.get("/api/sms/test", authMiddleware, async (req, res) => {
-  const { SMS_API_URL, SMS_USERNAME, SMS_USERNAME_FOR_TOKEN } = process.env;
+    if (!clientId) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Invalid client id" });
+    }
 
-  if (!SMS_API_URL || !SMS_USERNAME || !SMS_USERNAME_FOR_TOKEN) {
-    return res.json({
-      success: false,
-      error:
-        "SMS API settings missing (SMS_API_URL / SMS_USERNAME / SMS_USERNAME_FOR_TOKEN)",
-    });
+    await dbPool.query(
+      "UPDATE provent_crm_clients SET name = ?, phone = ?, email = ? WHERE id = ? LIMIT 1",
+      [name || null, phone || null, email || null, clientId]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("PUT /api/clients/:id error:", err);
+    res.status(500).json({ success: false, error: "Server error" });
   }
+});
 
-  res.json({
-    success: true,
-    tokenPreview: "configured",
-  });
+// ===== WORKERS API =====
+app.get("/api/workers", authMiddleware, async (req, res) => {
+  try {
+    const [rows] = await dbPool.query(
+      "SELECT id, full_name, username, phone, email, type, role, active, created_at FROM provent_crm_workers ORDER BY created_at DESC"
+    );
+    res.json({ success: true, workers: rows });
+  } catch (err) {
+    console.error("GET /api/workers error:", err);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+app.post("/api/workers", authMiddleware, async (req, res) => {
+  try {
+    const { full_name, username, phone, email, type, role } = req.body || {};
+
+    if (!full_name) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Missing full_name" });
+    }
+
+    const [result] = await dbPool.query(
+      `
+      INSERT INTO provent_crm_workers
+      (full_name, username, phone, email, type, role)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `,
+      [
+        full_name,
+        username || null,
+        phone || null,
+        email || null,
+        type || "employee",
+        role || "employee",
+      ]
+    );
+
+    res.json({ success: true, id: result.insertId });
+  } catch (err) {
+    console.error("POST /api/workers error:", err);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+// ===== SMS API =====
+app.get("/api/sms/test", authMiddleware, async (req, res) => {
+  try {
+    const result = await smsService.testSmsConnection();
+    if (!result.success) {
+      return res.json({ success: false, error: result.error });
+    }
+    res.json({
+      success: true,
+      message: result.message || "Token configured",
+    });
+  } catch (err) {
+    console.error("GET /api/sms/test error:", err);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
 });
 
 app.post("/api/sms/send", authMiddleware, async (req, res) => {
