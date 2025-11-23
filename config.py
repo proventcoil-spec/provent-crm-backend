@@ -7,8 +7,8 @@ class Config:
     # Render יקרא את ה-DATABASE_URL מה־Environment,
     # ואם לא הגדרת – הוא יפול לברירת המחדל פה (לא מומלץ בפרודקשן).
     DB_USER = os.getenv("DB_USER", "u894002499_provicrm")
-    DB_PASS = os.getenv("DB_PASS", "CHANGE_ME_PASSWORD")
-    DB_HOST = os.getenv("DB_HOST", "mysqlXXX.hostinger.com")
+    DB_PASS = os.getenv("DB_PASS", "Provent-2025")
+    DB_HOST = os.getenv("DB_HOST", "srv1016.hstgr.io")
     DB_NAME = os.getenv("DB_NAME", "u894002499_provicrm")
 
     SQLALCHEMY_DATABASE_URI = os.getenv(
