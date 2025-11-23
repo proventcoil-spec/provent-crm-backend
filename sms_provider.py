@@ -1,40 +1,51 @@
+# sms_provider.py
 import os
 import requests
-from flask import current_app
 
-def send_sms_019(phone: str, text: str) -> bool:
-    """שליחת SMS דרך 019.
-    חשוב: צריך לעדכן כאן את ה-URL והפרמטרים לפי המסמך הרשמי של 019.
-    כרגע זה מבוסס על דוגמה גנרית.
+API_URL = os.getenv("SMS_019_API_URL", "https://019sms.co.il/api")
+USERNAME = os.getenv("SMS_019_USERNAME")
+PASSWORD = os.getenv("SMS_019_PASSWORD")
+SENDER   = os.getenv("SMS_019_SENDER", "provent")
+
+
+def send_sms(phone: str, text: str) -> bool:
     """
-    phone = phone.replace("-", "").replace(" ", "")
-    if phone.startswith("0"):
-        phone = "972" + phone[1:]
+    פונקציה מרכזית לשליחת SMS דרך 019.
+    מחזירה True אם ההודעה נשלחה בהצלחה, אחרת False.
+    """
 
-    cfg = current_app.config
-    username = cfg.get("SMS_019_USERNAME")
-    password = cfg.get("SMS_019_PASSWORD")
-    api_key  = cfg.get("SMS_019_API_KEY")
-    sender   = cfg.get("SMS_019_SENDER", "PROVENT")
-
-    if not (username and password and api_key):
-        current_app.logger.warning("019 SMS not configured - skipping real send")
+    # אם אין הגדרות – לא ננסה לשלוח
+    if not USERNAME or not PASSWORD:
+        print("[SMS] Missing username/password env vars")
         return False
 
-    url = "https://019sms.example.com/api/send"  # להחליף ב-URL האמיתי של 019
+    if not phone or not text:
+        print("[SMS] Missing phone or text")
+        return False
+
     payload = {
-        "username": username,
-        "password": password,
-        "api_key": api_key,
-        "from": sender,
-        "to": phone,
-        "text": text,
+        "username": USERNAME,
+        "password": PASSWORD,
+        "source": SENDER,
+        "destinations": [
+            {
+                "phone": phone
+            }
+        ],
+        "message": text,
+        # אם יש שדות נוספים שחייבים לפי הדוקומנטציה – מוסיפים פה
+        # למשל: "encoding": "UTF-8"
     }
 
     try:
-        resp = requests.post(url, data=payload, timeout=10)
-        current_app.logger.info("019 SMS response: %s", resp.text)
-        return resp.ok
+        resp = requests.post(API_URL, json=payload, timeout=10)
+        print("[SMS] status:", resp.status_code, resp.text)
+
+        if resp.status_code == 200:
+            # אפשר לבדוק גם קוד חזרה בגוף התשובה אם 019 מחזירים
+            return True
+
+        return False
     except Exception as e:
-        current_app.logger.error("019 SMS error: %s", e)
+        print("[SMS] error:", e)
         return False
