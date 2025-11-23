@@ -6,3 +6,5 @@ python-dotenv==1.0.1
 PyJWT==2.9.0
 passlib==1.7.4
 requests==2.32.3
+gunicorn
+add gunicorn
