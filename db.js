@@ -1,14 +1,10 @@
+# db.py
+import sqlite3
+from pathlib import Path
 
-const mysql = require("mysql2/promise");
+DB_PATH = Path(__file__).parent / "provent_crm.db"
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST,      // לדוגמה: srvXXXX.hstgr.io (מ-Hostinger)
-  user: process.env.DB_USER,      // לדוגמה: u894002499_provicrm
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,  // לדוגמה: u894002499_provicrm
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-});
-
-module.exports = pool;
+def get_connection():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
