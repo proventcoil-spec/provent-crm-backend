@@ -1,24 +1,37 @@
-import os
-from urllib.parse import quote_plus
+# config.py
 
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+import os
 
 class Config:
-    SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-me")
+    # ---- חיבור למסד הנתונים (MySQL ב-Hostinger) ----
+    # Render יקרא את ה-DATABASE_URL מה־Environment,
+    # ואם לא הגדרת – הוא יפול לברירת המחדל פה (לא מומלץ בפרודקשן).
+    DB_USER = os.getenv("DB_USER", "u894002499_provicrm")
+    DB_PASS = os.getenv("DB_PASS", "CHANGE_ME_PASSWORD")
+    DB_HOST = os.getenv("DB_HOST", "mysqlXXX.hostinger.com")
+    DB_NAME = os.getenv("DB_NAME", "u894002499_provicrm")
+
+    SQLALCHEMY_DATABASE_URI = os.getenv(
+        "DATABASE_URL",
+        f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}/{DB_NAME}?charset=utf8mb4"
+    )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # אם יש DATABASE_URL (ברנדר), נשתמש בו. אחרת SQLite מקומי
-    db_url = os.environ.get("DATABASE_URL")
-    if db_url:
-        SQLALCHEMY_DATABASE_URI = db_url
-    else:
-        SQLALCHEMY_DATABASE_URI = "sqlite:///" + os.path.join(BASE_DIR, "provent_crm.db")
+    # ---- מפתחות סודיים ----
+    SECRET_KEY = os.getenv("SECRET_KEY", "provent-secret-key-change-me")
+    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "provent-jwt-secret-key-change-me")
 
-    # הגדרות 019 SMS (להחליף בפרטים אמיתיים)
-    SMS_019_USERNAME = os.environ.get("SMS_019_USERNAME", "")
-    SMS_019_PASSWORD = os.environ.get("SMS_019_PASSWORD", "")
-    SMS_019_API_KEY = os.environ.get("SMS_019_API_KEY", "")
-    SMS_019_SENDER = os.environ.get("SMS_019_SENDER", "PROVENT")
+    # ---- CORS ----
+    CORS_ORIGINS = os.getenv(
+        "CORS_ORIGINS",
+        "https://crm.pro-net.pro,http://localhost:5500,http://127.0.0.1:5500"
+    ).split(",")
+
+    # ---- 019 SMS ----
+    SMS019_USERNAME = os.getenv("SMS019_USERNAME", "provent12")
+    SMS019_PASSWORD = os.getenv("SMS019_PASSWORD", "Provent-2025")
+    SMS019_SOURCE   = os.getenv("SMS019_SOURCE", "provent")  # שם השולח בטקסטואל
+
 
 def get_config():
     return Config
