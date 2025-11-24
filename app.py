@@ -6,12 +6,6 @@ import datetime
 import os
 from datetime import datetime
 
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
-
-import pymysql
-pymysql.install_as_MySQLdb()  # חשוב!
 
 app = Flask(__name__)
 
