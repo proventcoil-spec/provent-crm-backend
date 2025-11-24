@@ -22,8 +22,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "Provent-Secret-Key-2025-CRM")
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 
-# ------------ DB HELPER ------------
-
+# DB HELPER
 def get_connection():
     return pymysql.connect(
         host=app.config["MYSQL_HOST"],
@@ -32,8 +31,11 @@ def get_connection():
         db=app.config["MYSQL_DB"],
         charset="utf8mb4",
         cursorclass=pymysql.cursors.DictCursor,
+        autocommit=True,
+        connect_timeout=10,
+        read_timeout=20,
+        write_timeout=20,
     )
-
 
 # ------------ HEALTH CHECK ------------
 
