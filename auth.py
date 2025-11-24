@@ -30,17 +30,15 @@ def login():
     username = (data.get("username") or "").strip()
     password = (data.get("password") or "").strip()
 
-    if not username or not password:
-        return jsonify({"success": False, "error": "חסר שם משתמש או סיסמה"}), 400
+        if not username or not password:
+        return jsonify({"success": False, "message": "שם משתמש או סיסמה חובה"}), 400
 
     user = User.query.filter_by(username=username).first()
     if not user:
-        return jsonify({"success": False, "error": "משתמש לא נמצא"}), 401
+        return jsonify({"success": False, "message": "משתמש לא נמצא"}), 401
 
-    # אם הסיסמאות אצלך בטבלה עדיין בטקסט פשוט (1234) – החלף כאן לשורה:
-    # if password != user.password:
     if not pbkdf2_sha256.verify(password, user.password):
-        return jsonify({"success": False, "error": "סיסמה שגויה"}), 401
+        return jsonify({"success": False, "message": "סיסמה שגויה"}), 401
 
     # יצירת JWT
     secret = current_app.config.get("JWT_SECRET_KEY", "fallback_jwt_secret")
