@@ -1,8 +1,6 @@
 Flask
 flask-cors
-flask-sqlalchemy
 pymysql
-bcrypt
 PyJWT
 gunicorn
 python-dotenv
