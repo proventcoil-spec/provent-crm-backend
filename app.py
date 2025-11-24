@@ -7,12 +7,11 @@ from flask_sqlalchemy import SQLAlchemy
 import bcrypt
 import jwt
 import pymysql
-
 pymysql.install_as_MySQLdb()
 
 app = Flask(__name__)
 
-# ---------- CONFIG ----------
+# ------------------ CONFIG ------------------
 app.config['MYSQL_HOST'] = os.getenv("DB_HOST")
 app.config['MYSQL_USER'] = os.getenv("DB_USER")
 app.config['MYSQL_PASSWORD'] = os.getenv("DB_PASS")
@@ -21,16 +20,14 @@ app.config['MYSQL_CURSORCLASS'] = "DictCursor"
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 
-
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-# ---------- HEALTH ----------
+# ------------------ HEALTH CHECK ------------------
 @app.route("/api/health")
 def health():
     return jsonify({"status": "ok"}), 200
 
-
-# ---------- LOGIN ----------
+# ------------------ LOGIN ------------------
 @app.route("/api/auth/login", methods=["POST"])
 def login():
     try:
@@ -41,24 +38,25 @@ def login():
         if not username or not password:
             return jsonify({"success": False, "error": "Missing username or password"}), 400
 
-        cursor = mysql.connection.cursor()
+        cursor = pymysql.connect(
+            host=app.config['MYSQL_HOST'],
+            user=app.config['MYSQL_USER'],
+            password=app.config['MYSQL_PASSWORD'],
+            db=app.config['MYSQL_DB'],
+            cursorclass=pymysql.cursors.DictCursor
+        ).cursor()
+
         cursor.execute("SELECT * FROM users WHERE username=%s LIMIT 1", (username,))
         user = cursor.fetchone()
 
         if not user:
             return jsonify({"success": False, "error": "User not found"}), 401
 
-        # check hash
         if not bcrypt.checkpw(password.encode(), user["password_hash"].encode()):
-            return jsonify({"success": False, "error": "Wrong password"}), 401
+            return jsonify({"success": False, "error": "Incorrect password"}), 401
 
         token = jwt.encode(
-            {
-                "id": user["id"],
-                "username": user["username"],
-                "role": user["role"],
-                "exp": datetime.datetime.utcnow() + datetime.timedelta(days=1),
-            },
+            {"id": user["id"], "username": user["username"]},
             SECRET_KEY,
             algorithm="HS256"
         )
@@ -67,15 +65,11 @@ def login():
             "success": True,
             "token": token,
             "username": user["username"],
-            "role": user["role"],
-            "fullName": user["full_name"]
-        })
+            "full_name": user.get("full_name", "")
+        }), 200
 
     except Exception as e:
-        print("LOGIN ERROR:", e)
-        return jsonify({"success": False, "error": "Server error"}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
-
-# ---------- START ----------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+    app.run(host="0.0.0.0", port=10000)
