@@ -1,135 +1,69 @@
 # auth.py
-
 from flask import Blueprint, request, jsonify, current_app
 from models import db, User
 from passlib.hash import pbkdf2_sha256
-from sqlalchemy import or_
-from sqlalchemy.exc import SQLAlchemyError
 import jwt
 import datetime
 
 auth_bp = Blueprint("auth_bp", __name__)
 
 
-# --------------------------------------------------
-# CORS לכל הבקשות שיוצאות דרך auth
-# --------------------------------------------------
+# הוספת CORS לכל הבקשות היוצאות מה־auth
 @auth_bp.after_request
 def add_cors_headers(response):
-    # אם הגדרת ALLOWED_ORIGINS ב-app.config – נשתמש בו, אחרת נפתח ל-*
-    allowed_origins = current_app.config.get("ALLOWED_ORIGINS", "*")
-    response.headers["Access-Control-Allow-Origin"] = allowed_origins
+    response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     return response
 
 
-# --------------------------------------------------
-# LOGIN
-# --------------------------------------------------
+# ===== LOGIN =====
 @auth_bp.route("/login", methods=["POST", "OPTIONS"])
 def login():
-    # בקשת OPTIONS (Preflight) לדפדפן – נחזיר OK
+
+    # בקשת OPTIONS (Preflight)
     if request.method == "OPTIONS":
         return jsonify({"ok": True}), 200
 
-    try:
-        data = request.get_json(silent=True) or {}
+    data = request.get_json() or {}
 
-        # בשורה הזו מגיע מהפרונט השדה username – אבל זה בעצם אימייל אצלך
-        username_or_email = (data.get("username") or "").strip()
-        password = (data.get("password") or "").strip()
+    username = (data.get("username") or "").strip()
+    password = (data.get("password") or "").strip()
 
-        if not username_or_email or not password:
-            return jsonify({
-                "success": False,
-                "message": "שם המשתמש או הסיסמה לא נכונים"
-            }), 400
+    if not username or not password:
+        return jsonify({"success": False, "error": "שם משתמש או סיסמה חסרים"}), 400
 
-        # נחפש גם לפי username וגם לפי email
-        user = (
-            User.query
-            .filter(
-                or_(User.username == username_or_email,
-                    User.email == username_or_email)
-            )
-            .first()
-        )
+    # שליפת המשתמש מהמסד
+    user = User.query.filter_by(username=username).first()
 
-        if not user:
-            return jsonify({
-                "success": False,
-                "message": "שם המשתמש או הסיסמה לא נכונים"
-            }), 401
+    if not user:
+        return jsonify({"success": False, "error": "שם המשתמש לא נמצא"}), 401
 
-        # --------------------------------------------------
-        # בדיקת סיסמה:
-        # אם השדה נראה כמו hash של pbkdf2 – נשתמש ב-verify
-        # אחרת נשווה טקסט רגיל (כמו שיש כרגע ב-DB: Provent-2025)
-        # --------------------------------------------------
-        stored = getattr(user, "password_hash", None)
-        password_ok = False
+    # אימות סיסמה (hashed)
+    if not pbkdf2_sha256.verify(password, user.password_hash):
+        return jsonify({"success": False, "error": "סיסמה שגויה"}), 401
 
-        if stored:
-            try:
-                if isinstance(stored, str) and stored.startswith("$pbkdf2-sha256$"):
-                    # סיסמה מוצפנת
-                    password_ok = pbkdf2_sha256.verify(password, stored)
-                else:
-                    # סיסמה רגילה (plain text)
-                    password_ok = (password == stored)
-            except Exception:
-                # אם יש תקלה ב-passlib – נ fallback להשוואה רגילה
-                password_ok = (password == stored)
+    # יצירת JWT
+    secret = current_app.config.get("JWT_SECRET_KEY", "fallback_secret")
+    payload = {
+        "sub": user.id,
+        "username": user.username,
+        "role": user.role,
+        "full_name": user.full_name,
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=12)
+    }
 
-        if not password_ok:
-            return jsonify({
-                "success": False,
-                "message": "שם המשתמש או הסיסמה לא נכונים"
-            }), 401
+    token = jwt.encode(payload, secret, algorithm="HS256")
 
-        # --------------------------------------------------
-        # יצירת JWT
-        # --------------------------------------------------
-        secret = current_app.config.get("JWT_SECRET_KEY", "fallback_jwt_secret")
-
-        payload = {
-            "sub": user.id,
-            "username": user.username,
-            "role": getattr(user, "role", None),
-            "full_name": getattr(user, "full_name", None),
-            "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=12),
-        }
-
-        token = jwt.encode(payload, secret, algorithm="HS256")
-
-        user_data = {
+    return jsonify({
+        "success": True,
+        "token": token,
+        "user": {
             "id": user.id,
             "username": user.username,
-            "email": getattr(user, "email", None),
-            "full_name": getattr(user, "full_name", None),
-            "role": getattr(user, "role", None),
+            "role": user.role,
+            "full_name": user.full_name,
+            "email": user.email,
+            "phone": user.phone
         }
-
-        return jsonify({
-            "success": True,
-            "message": "התחברת בהצלחה",
-            "token": token,
-            "user": user_data,
-        }), 200
-
-    except SQLAlchemyError as e:
-        # שגיאה במסד נתונים
-        current_app.logger.exception("DB error in /api/auth/login: %s", e)
-        return jsonify({
-            "success": False,
-            "message": "שגיאה במסד הנתונים בזמן התחברות"
-        }), 500
-
-    except Exception as e:
-        # כל שגיאה אחרת – נרשום בלוג וניתן הודעה ברורה
-        current_app.logger.exception("Error in /api/auth/login: %s", e)
-        return jsonify({
-            "success": False,
-            "message": f"שגיאה בשרת (login): {str(e)}"
-        }), 500
+    }), 200
