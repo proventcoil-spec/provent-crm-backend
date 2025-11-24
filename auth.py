@@ -24,7 +24,13 @@ def add_cors_headers(response):
 def login():
     # מענה לבקשת OPTIONS (Preflight) כדי שלא תהיה שגיאת CORS
     if request.method == "OPTIONS":
-        return jsonify({"ok": True}), 200
+            return jsonify({
+        "success": True,
+        "message": "התחברת בהצלחה",
+        "token": token,
+        "user": user_data
+    }), 200
+        
 
     data = request.get_json() or {}
     username = (data.get("username") or "").strip()
