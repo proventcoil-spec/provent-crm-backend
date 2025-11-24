@@ -1,10 +1,8 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import bcrypt
-import jwt
-import datetime
-import os
-from datetime import datetime
+from flask_sqlalchemy import SQLAlchemy
+import pymysql
+pymysql.install_as_MySQLdb()
 
 
 app = Flask(__name__)
