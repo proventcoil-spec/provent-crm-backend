@@ -1,6 +1,5 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from flask_mysqldb import MySQL
 import MySQLdb.cursors
 import bcrypt
 import jwt
@@ -18,7 +17,6 @@ app.config['MYSQL_CURSORCLASS'] = "DictCursor"
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 
-mysql = MySQL(app)
 
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
