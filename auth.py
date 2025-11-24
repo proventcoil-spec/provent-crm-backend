@@ -1,14 +1,18 @@
 # auth.py
+
 from flask import Blueprint, request, jsonify, current_app
 from models import db, User
 from passlib.hash import pbkdf2_sha256
+from sqlalchemy import or_
 import jwt
 import datetime
 
 auth_bp = Blueprint("auth_bp", __name__)
 
 
-# הוספת CORS לכל הבקשות היוצאות מה־auth
+# --------------------------------------------------
+# CORS לכל הבקשות של auth
+# --------------------------------------------------
 @auth_bp.after_request
 def add_cors_headers(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
@@ -17,53 +21,102 @@ def add_cors_headers(response):
     return response
 
 
-# ===== LOGIN =====
+# --------------------------------------------------
+# LOGIN
+# --------------------------------------------------
 @auth_bp.route("/login", methods=["POST", "OPTIONS"])
 def login():
-
     # בקשת OPTIONS (Preflight)
     if request.method == "OPTIONS":
         return jsonify({"ok": True}), 200
 
-    data = request.get_json() or {}
+    try:
+        data = request.get_json(silent=True) or {}
 
-    username = (data.get("username") or "").strip()
-    password = (data.get("password") or "").strip()
+        # מהפרונט מגיע key בשם "username" אבל זה בעצם המייל בטופס
+        identifier = (data.get("username") or data.get("email") or "").strip()
+        password = (data.get("password") or "").strip()
 
-    if not username or not password:
-        return jsonify({"success": False, "error": "שם משתמש או סיסמה חסרים"}), 400
+        # אין מייל/יוזר או סיסמה
+        if not identifier or not password:
+            return jsonify({
+                "success": False,
+                "message": "שם המשתמש או הסיסמה לא נכונים"
+            }), 401
 
-    # שליפת המשתמש מהמסד
-    user = User.query.filter_by(username=username).first()
+        # חיפוש לפי username או לפי email
+        user = User.query.filter(
+            or_(User.username == identifier, User.email == identifier)
+        ).first()
 
-    if not user:
-        return jsonify({"success": False, "error": "שם המשתמש לא נמצא"}), 401
+        if not user:
+            return jsonify({
+                "success": False,
+                "message": "שם המשתמש או הסיסמה לא נכונים"
+            }), 401
 
-    # אימות סיסמה (hashed)
-    if not pbkdf2_sha256.verify(password, user.password_hash):
-        return jsonify({"success": False, "error": "סיסמה שגויה"}), 401
+        # --------------------------------------------------
+        # בדיקת סיסמה: hash או טקסט רגיל
+        # --------------------------------------------------
+        stored = getattr(user, "password_hash", None)
+        if not stored:
+            return jsonify({
+                "success": False,
+                "message": "שם המשתמש או הסיסמה לא נכונים"
+            }), 401
 
-    # יצירת JWT
-    secret = current_app.config.get("JWT_SECRET_KEY", "fallback_secret")
-    payload = {
-        "sub": user.id,
-        "username": user.username,
-        "role": user.role,
-        "full_name": user.full_name,
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=12)
-    }
+        password_ok = False
 
-    token = jwt.encode(payload, secret, algorithm="HS256")
+        try:
+            if isinstance(stored, str) and stored.startswith("$pbkdf2-sha256$"):
+                # סיסמה מוצפנת
+                password_ok = pbkdf2_sha256.verify(password, stored)
+            else:
+                # סיסמה רגילה בטבלה (כמו כרגע: Provent-2025)
+                password_ok = (password == stored)
+        except Exception:
+            # אם יש בעיה ב-passlib, נעשה השוואה רגילה
+            password_ok = (password == stored)
 
-    return jsonify({
-        "success": True,
-        "token": token,
-        "user": {
+        if not password_ok:
+            return jsonify({
+                "success": False,
+                "message": "שם המשתמש או הסיסמה לא נכונים"
+            }), 401
+
+        # --------------------------------------------------
+        # יצירת JWT
+        # --------------------------------------------------
+        secret = current_app.config.get("JWT_SECRET_KEY", "fallback_jwt_secret")
+
+        payload = {
+            "sub": user.id,
+            "username": user.username,
+            "role": getattr(user, "role", None),
+            "full_name": getattr(user, "full_name", None),
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=12),
+        }
+
+        token = jwt.encode(payload, secret, algorithm="HS256")
+
+        user_data = {
             "id": user.id,
             "username": user.username,
-            "role": user.role,
-            "full_name": user.full_name,
-            "email": user.email,
-            "phone": user.phone
+            "email": getattr(user, "email", None),
+            "full_name": getattr(user, "full_name", None),
+            "role": getattr(user, "role", None),
         }
-    }), 200
+
+        return jsonify({
+            "success": True,
+            "message": "התחברת בהצלחה",
+            "token": token,
+            "user": user_data,
+        }), 200
+
+    except Exception as e:
+        current_app.logger.exception("Error in /api/auth/login: %s", e)
+        return jsonify({
+            "success": False,
+            "message": "שגיאה בשרת בזמן התחברות"
+        }), 500
