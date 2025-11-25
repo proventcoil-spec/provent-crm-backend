@@ -2,6 +2,9 @@ from datetime import datetime
 from extensions import db
 
 
+# =========================
+# USER MODEL
+# =========================
 class User(db.Model):
     __tablename__ = "users"
 
@@ -33,5 +36,33 @@ class User(db.Model):
             "event_role": self.event_role,
             "payment_type": self.payment_type,
             "payment_amount": self.payment_amount,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+# =========================
+# CLIENT MODEL
+# =========================
+class Client(db.Model):
+    __tablename__ = "clients"
+
+    id = db.Column(db.Integer, primary_key=True)
+    full_name = db.Column(db.String(255), nullable=False)
+    phone = db.Column(db.String(20))
+    email = db.Column(db.String(255))
+    event_date = db.Column(db.String(50))
+    event_type = db.Column(db.String(100))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "full_name": self.full_name,
+            "phone": self.phone,
+            "email": self.email,
+            "event_date": self.event_date,
+            "event_type": self.event_type,
+            "notes": self.notes,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
