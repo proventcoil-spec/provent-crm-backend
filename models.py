@@ -1,7 +1,9 @@
 from datetime import datetime
 from extensions import db
 
-
+# ==========================
+# USER MODEL
+# ==========================
 class User(db.Model):
     __tablename__ = "users"
 
@@ -10,13 +12,11 @@ class User(db.Model):
     email = db.Column(db.String(255), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
 
-    # שדות תפקיד/מצב
-    role = db.Column(db.String(50), nullable=False, default="user")
+    role = db.Column(db.String(50), default="user", nullable=False)
     full_name = db.Column(db.String(255))
     phone = db.Column(db.String(20))
     status = db.Column(db.String(20), default="active")
 
-    # שדות תשלום/תפקיד באירוע (לא חובה לשימוש מידי)
     event_role = db.Column(db.String(50))
     payment_type = db.Column(db.String(50))
     payment_amount = db.Column(db.Float)
@@ -35,87 +35,48 @@ class User(db.Model):
             "event_role": self.event_role,
             "payment_type": self.payment_type,
             "payment_amount": self.payment_amount,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_at": self.created_at.isoformat(),
         }
 
 
+# ==========================
+# CLIENT MODEL
+# ==========================
 class Client(db.Model):
     __tablename__ = "clients"
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(255), nullable=False)
-
-    phone = db.Column(db.String(20))
+    full_name = db.Column(db.String(255), nullable=False)
+    phone = db.Column(db.String(50))
     email = db.Column(db.String(255))
-
-    event_type = db.Column(db.String(100))   # סוג אירוע (חתונה/בר מצווה וכו')
-    source = db.Column(db.String(100))       # מאיפה הגיע הלקוח (פייסבוק, אינסטה...)
-    status = db.Column(db.String(50), default="new")
+    event_type = db.Column(db.String(255))
     notes = db.Column(db.Text)
-
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # קשר לאירועים
-    events = db.relationship("Event", backref="client", lazy=True)
 
     def to_dict(self):
         return {
             "id": self.id,
-            "name": self.name,
+            "full_name": self.full_name,
             "phone": self.phone,
             "email": self.email,
             "event_type": self.event_type,
-            "source": self.source,
-            "status": self.status,
             "notes": self.notes,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_at": self.created_at.isoformat(),
         }
 
 
-class Event(db.Model):
-    __tablename__ = "events"
-
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(255), nullable=False)  # שם האירוע
-    date = db.Column(db.Date, nullable=False)
-    time = db.Column(db.Time)
-
-    event_type = db.Column(db.String(100))             # חתונה / בר מצווה וכו'
-    location = db.Column(db.String(255))
-    status = db.Column(db.String(50), default="planning")
-    budget = db.Column(db.Float)
-
-    client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=True)
-
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "title": self.title,
-            "date": self.date.isoformat() if self.date else None,
-            "time": self.time.isoformat() if self.time else None,
-            "event_type": self.event_type,
-            "location": self.location,
-            "status": self.status,
-            "budget": self.budget,
-            "client_id": self.client_id,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-        }
-
-
+# ==========================
+# LEAD MODEL
+# ==========================
 class Lead(db.Model):
     __tablename__ = "leads"
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
-    phone = db.Column(db.String(20))
-    email = db.Column(db.String(255))
-
-    source = db.Column(db.String(100))                 # מקור ליד
-    status = db.Column(db.String(50), default="new")
+    phone = db.Column(db.String(50))
+    source = db.Column(db.String(255))
+    status = db.Column(db.String(255), default="new")
     notes = db.Column(db.Text)
-
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -123,9 +84,56 @@ class Lead(db.Model):
             "id": self.id,
             "name": self.name,
             "phone": self.phone,
-            "email": self.email,
             "source": self.source,
             "status": self.status,
             "notes": self.notes,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_at": self.created_at.isoformat(),
+        }
+
+
+# ==========================
+# EVENT MODEL
+# ==========================
+class Event(db.Model):
+    __tablename__ = "events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_name = db.Column(db.String(255), nullable=False)
+    event_date = db.Column(db.String(50))
+    event_type = db.Column(db.String(255))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "client_name": self.client_name,
+            "event_date": self.event_date,
+            "event_type": self.event_type,
+            "notes": self.notes,
+            "created_at": self.created_at.isoformat(),
+        }
+
+
+# ==========================
+# MEDIA FILE MODEL
+# ==========================
+class MediaFile(db.Model):
+    __tablename__ = "media_files"
+
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(255), nullable=False)
+    url = db.Column(db.String(500), nullable=False)
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    event_id = db.Column(db.Integer, db.ForeignKey("events.id"))
+    event = db.relationship("Event", backref=db.backref("media_files", lazy=True))
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "filename": self.filename,
+            "url": self.url,
+            "uploaded_at": self.uploaded_at.isoformat(),
+            "event_id": self.event_id,
         }
