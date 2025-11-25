@@ -3,6 +3,4 @@ flask_sqlalchemy
 flask_cors
 pymysql
 passlib
-python-dotenv
-gunicorn
 pyjwt
