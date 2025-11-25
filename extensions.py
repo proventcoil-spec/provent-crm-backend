@@ -1,20 +1,33 @@
-# extensions.py
 from flask_sqlalchemy import SQLAlchemy
+from passlib.hash import bcrypt
 
-# אובייקט ה-DB הגלובלי של האפליקציה
 db = SQLAlchemy()
 
 
 def init_db(app):
     """
-    את הפונקציה הזו אתה קורא מתוך app.py
-    היא מחברת את SQLAlchemy לאפליקציה
-    ויוצרת את כל הטבלאות לפי המודלים.
+    מחבר את SQLAlchemy לאפליקציה ויוצר טבלאות.
+    בנוסף – יוצר משתמש אדמין אם עוד לא קיים.
     """
     db.init_app(app)
 
-    # יוצרים את הטבלאות ב־PostgreSQL
+    from models import User  # ייבוא דינמי כדי לא לעשות לולאת import
+
     with app.app_context():
-        # הייבוא כאן כדי למנוע import循环
-        from models import User, Client, Lead, Event  # ודא שהקלאסים האלו קיימים ב-models.py
         db.create_all()
+
+        # יצירת משתמש אדמין ברירת מחדל אם אין כזה
+        admin_email = "admin@provent.co.il"
+        admin_password = "Provent-2025!crm"
+
+        existing = User.query.filter_by(email=admin_email).first()
+        if not existing:
+            admin = User(
+                email=admin_email,
+                full_name="שלומי פרץ",
+                role="owner",
+                status="active",
+            )
+            admin.password_hash = bcrypt.hash(admin_password)
+            db.session.add(admin)
+            db.session.commit()
