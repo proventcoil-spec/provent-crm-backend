@@ -1,6 +1,6 @@
 flask
 flask-cors
-sqlalchemy
+flask_sqlalchemy
 pymysql
 passlib
 python-dotenv
