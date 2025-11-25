@@ -1,6 +1,6 @@
-
 flask
-flask_sqlalchemy
-flask_cors
+flask-cors
+flask-sqlalchemy
 psycopg2-binary
-pyjwt
+python-dotenv
+passlib
