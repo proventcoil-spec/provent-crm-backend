@@ -1,7 +1,9 @@
 flask
 flask-cors
+flask_sqlalchemy
 sqlalchemy
 psycopg2-binary
 passlib
+pymysql
 python-dotenv
 gunicorn
