@@ -1,6 +1,26 @@
 from datetime import datetime
 from extensions import db
 
+class Event(db.Model):
+    __tablename__ = "events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_name = db.Column(db.String(255), nullable=False)
+    event_date = db.Column(db.DateTime, nullable=False)
+    event_type = db.Column(db.String(100))
+    location = db.Column(db.String(255))
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "client_name": self.client_name,
+            "event_date": self.event_date.isoformat() if self.event_date else None,
+            "event_type": self.event_type,
+            "location": self.location,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
 
 # =========================
 # USER MODEL
