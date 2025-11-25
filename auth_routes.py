@@ -1,90 +1,90 @@
+# auth_routes.py
+from datetime import datetime, timedelta
 
-from flask import Blueprint, request, jsonify, current_app
-from models import User
+from flask import Blueprint, request, jsonify
+from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
-import datetime
+
+from extensions import db
+from config import Config
+from models import User  # חשוב: לוודא שהמודל User מוגדר ב-models.py
 
 auth_bp = Blueprint("auth_bp", __name__)
 
 
-@auth_bp.after_request
-def add_cors_headers(response):
-    response.headers["Access-Control-Allow-Origin"] = current_app.config.get("FRONTEND_ORIGIN", "*")
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-    return response
+# ---------- SEED ADMIN ----------
 
-
-@auth_bp.route("/login", methods=["POST", "OPTIONS"])
-def login():
-    if request.method == "OPTIONS":
-        return jsonify({"ok": True}), 200
-
-    data = request.get_json() or {}
-
-    identifier = (data.get("email") or data.get("username") or "").strip().lower()
-    password = (data.get("password") or "").strip()
-
-    if not identifier or not password:
-        return jsonify({
-            "success": False,
-            "error": "חובה למלא אימייל וסיסמה"
-        }), 400
-
-    if "@" in identifier:
-        user = User.query.filter(User.email == identifier).first()
-    else:
-        user = User.query.filter(User.username == identifier).first()
-
-    if not user:
-        return jsonify({"success": False, "error": "שם משתמש או סיסמה לא נכונים"}), 401
-
-    if password != (user.password_hash or ""):
-        return jsonify({"success": False, "error": "שם משתמש או סיסמה לא נכונים"}), 401
-
-    secret = current_app.config.get("JWT_SECRET_KEY", "fallback_jwt_secret")
-    payload = {
-        "sub": user.id,
-        "email": user.email,
-        "role": user.role,
-        "full_name": user.full_name,
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=12),
-        "iat": datetime.datetime.utcnow(),
-    }
-
-    token = jwt.encode(payload, secret, algorithm="HS256")
-
-    return jsonify({
-        "success": True,
-        "token": token,
-        "user": {
-            "id": user.id,
-            "email": user.email,
-            "full_name": user.full_name,
-            "role": user.role,
-            "status": user.status,
-        }
-    }), 200
-    from passlib.hash import pbkdf2_sha256
-from models import User, db  # ודא שזה כבר קיים אצלך (כמו בשאר הראוטים)
-
-@auth_bp.route('/seed-admin', methods=['POST'])
+@auth_bp.route("/seed-admin", methods=["POST"])
 def seed_admin():
-    # כדי שלא ניצור פעמיים
-    if User.query.filter_by(email="admin@provent.co.il").first():
-        return jsonify({"message": "admin already exists"}), 400
+    """
+    יצירת משתמש אדמין ראשוני במערכת.
+    אימייל:   admin@provent.co.il
+    סיסמה:    Provent-2025
+    """
 
-    password = "Provent-2025!crm"  # סיסמה זמנית, תחליף אחרי שתיכנס
-    password_hash = pbkdf2_sha256.hash(password)
+    admin_email = "admin@provent.co.il"
+
+    existing = User.query.filter_by(email=admin_email).first()
+    if existing:
+        return jsonify({"message": "Admin already exists"}), 200
+
+    password_hash = generate_password_hash(
+        "Provent-2025", method="pbkdf2:sha256", salt_length=8
+    )
 
     admin = User(
-        email="admin@provent.co.il",
+        username="admin.master",
+        email=admin_email,
         password_hash=password_hash,
         role="owner",
         full_name="שלומי פרץ",
-        status="active"
+        phone="0500000000",
+        status="active",
+        created_at=datetime.utcnow(),
     )
+
     db.session.add(admin)
     db.session.commit()
 
-    return jsonify({"message": "admin created", "email": admin.email, "password": password}), 201
+    return jsonify({"message": "Admin user created", "email": admin_email}), 201
+
+
+# ---------- LOGIN ----------
+
+@auth_bp.route("/login", methods=["POST"])
+def login():
+    data = request.get_json() or {}
+
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+
+    if not email or not password:
+        return jsonify({"message": "חסר אימייל או סיסמה"}), 400
+
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"message": "שם משתמש או סיסמה לא נכונים"}), 401
+
+    if not check_password_hash(user.password_hash, password):
+        return jsonify({"message": "שם משתמש או סיסמה לא נכונים"}), 401
+
+    payload = {
+        "user_id": user.id,
+        "email": user.email,
+        "role": getattr(user, "role", "user"),
+        "exp": datetime.utcnow() + timedelta(days=1),
+    }
+
+    token = jwt.encode(payload, Config.JWT_SECRET_KEY, algorithm="HS256")
+
+    return jsonify(
+        {
+            "token": token,
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "full_name": getattr(user, "full_name", ""),
+                "role": getattr(user, "role", "user"),
+            },
+        }
+    ), 200
