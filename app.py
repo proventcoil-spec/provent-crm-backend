@@ -16,9 +16,12 @@ def create_app():
     # חיבור DB + הגדרות
     init_db(app)
 
-    # יצירת כל הטבלאות לפי models.py (אם הן לא קיימות)
-    with app.app_context():
-        db.create_all()
+    @app.route("/api/init-db")
+def init_db_route():
+    from extensions import db
+    db.drop_all()
+    db.create_all()
+    return {"status": "tables created"}
 
     # רישום ה־Blueprints
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
