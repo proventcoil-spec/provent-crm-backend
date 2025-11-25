@@ -1,8 +1,7 @@
 from flask import Flask
 from flask_cors import CORS
 
-from config import Config
-from extensions import init_db
+from extensions import init_db, db
 from auth_routes import auth_bp
 from clients_routes import clients_bp
 from events_routes import events_bp
@@ -12,18 +11,16 @@ from uploads_routes import uploads_bp
 
 def create_app():
     app = Flask(__name__)
+    CORS(app, supports_credentials=True)
 
-    CORS(
-        app,
-        supports_credentials=True,
-        resources={r"/api/*": {"origins": [Config.FRONTEND_ORIGIN]}},
-    )
-
+    # חיבור DB + הגדרות
     init_db(app)
 
+    # יצירת כל הטבלאות לפי models.py (אם הן לא קיימות)
     with app.app_context():
-    db.create_all()
+        db.create_all()
 
+    # רישום ה־Blueprints
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(clients_bp, url_prefix="/api/clients")
     app.register_blueprint(events_bp, url_prefix="/api/events")
