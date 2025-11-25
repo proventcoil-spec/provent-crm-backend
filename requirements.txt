@@ -1,7 +1,7 @@
-Flask
-Flask-Cors
-Flask-SQLAlchemy
+flask
+flask-cors
+flask_sqlalchemy
 psycopg2-binary
-passlib
-gunicorn
+passlib[bcrypt]
 python-dotenv
+gunicorn
