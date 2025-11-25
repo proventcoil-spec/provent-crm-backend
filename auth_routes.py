@@ -1,6 +1,8 @@
+# auth_routes.py
+from datetime import datetime, timedelta
+
 from flask import Blueprint, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, timedelta, timezone
 import jwt
 
 from extensions import db
@@ -9,60 +11,91 @@ from config import Config
 
 auth_bp = Blueprint("auth", __name__)
 
-
-def generate_token(user: User) -> str:
-    payload = {
-        "user_id": user.id,
-        "email": user.email,
-        "role": user.role,
-        "exp": datetime.now(timezone.utc) + timedelta(days=7),
-    }
-    token = jwt.encode(payload, Config.JWT_SECRET_KEY, algorithm="HS256")
-    if isinstance(token, bytes):
-        token = token.decode("utf-8")
-    return token
+JWT_SECRET = Config.JWT_SECRET_KEY
+JWT_ALGORITHM = "HS256"
 
 
+# =========================
+# LOGIN
+# =========================
 @auth_bp.route("/login", methods=["POST"])
 def login():
     data = request.get_json() or {}
-    email = (data.get("email") or "").strip().lower()
-    password = data.get("password") or ""
+    email = data.get("email", "").strip().lower()
+    password = data.get("password", "")
 
     if not email or not password:
-        return jsonify({"message": "Email and password required"}), 400
+        return jsonify({"message": "חסר אימייל או סיסמה"}), 400
 
     user = User.query.filter_by(email=email).first()
 
+    # אם אין משתמש או שהסיסמה לא מתאימה
     if not user or not check_password_hash(user.password_hash, password):
         return jsonify({"message": "שם משתמש או סיסמה לא נכונים"}), 401
 
-    token = generate_token(user)
+    payload = {
+        "sub": user.id,
+        "email": user.email,
+        "role": user.role,
+        "iat": datetime.utcnow(),
+        "exp": datetime.utcnow() + timedelta(days=7),
+    }
 
-    return jsonify({
-        "token": token,
-        "user": user.to_dict()
-    })
+    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+    return jsonify(
+        {
+            "token": token,
+            "user": user.to_dict(),
+        }
+    ), 200
 
 
+# =========================
+# SEED ADMIN  (פעם אחת בלבד)
+# =========================
 @auth_bp.route("/seed-admin", methods=["POST"])
 def seed_admin():
-    """יוצר משתמש אדמין פעם אחת"""
-    existing = User.query.filter_by(email="admin@provent.co.il").first()
-    if existing:
-        return jsonify({"message": "Admin already exists"}), 200
+    """
+    יוצר משתמש אדמין ראשוני.
+    עובד רק אם עדיין אין רשומת משתמש אחת ב-DB.
+    אחרי שזה רץ פעם אחת – לא להשתמש בזה יותר.
+    """
 
-    admin = User(
-        username="admin",
-        email="admin@provent.co.il",
-        full_name="שלומי פרץ",
-        role="owner",
+    # אם כבר יש משתמשים – חוסמים
+    existing = User.query.first()
+    if existing:
+        return (
+            jsonify({"message": "כבר קיימים משתמשים במערכת – יצירת אדמין חסומה"}),
+            400,
+        )
+
+    # נתוני ברירת מחדל – אפשר לשנות פה אם תרצה
+    email = "admin@provent.co.il"
+    username = "admin"
+    raw_password = "Provent-2025!"
+
+    password_hash = generate_password_hash(raw_password)
+
+    admin_user = User(
+        username=username,
+        email=email,
+        password_hash=password_hash,
+        role="admin",
+        full_name="Provent Admin",
         status="active",
     )
 
-    admin.password_hash = generate_password_hash("Provent-2025!crm")
-
-    db.session.add(admin)
+    db.session.add(admin_user)
     db.session.commit()
 
-    return jsonify({"message": "Admin created"}), 201
+    return (
+        jsonify(
+            {
+                "message": "אדמין נוצר בהצלחה",
+                "login_email": email,
+                "login_password": raw_password,
+            }
+        ),
+        201,
+    )
