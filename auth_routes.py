@@ -65,3 +65,26 @@ def login():
             "status": user.status,
         }
     }), 200
+    from passlib.hash import pbkdf2_sha256
+from models import User, db  # ודא שזה כבר קיים אצלך (כמו בשאר הראוטים)
+
+@auth_bp.route('/seed-admin', methods=['POST'])
+def seed_admin():
+    # כדי שלא ניצור פעמיים
+    if User.query.filter_by(email="admin@provent.co.il").first():
+        return jsonify({"message": "admin already exists"}), 400
+
+    password = "Provent-2025!crm"  # סיסמה זמנית, תחליף אחרי שתיכנס
+    password_hash = pbkdf2_sha256.hash(password)
+
+    admin = User(
+        email="admin@provent.co.il",
+        password_hash=password_hash,
+        role="owner",
+        full_name="שלומי פרץ",
+        status="active"
+    )
+    db.session.add(admin)
+    db.session.commit()
+
+    return jsonify({"message": "admin created", "email": admin.email, "password": password}), 201
