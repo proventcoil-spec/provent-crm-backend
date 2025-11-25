@@ -5,3 +5,4 @@ pymysql
 passlib
 python-dotenv
 gunicorn
+pyjwt
