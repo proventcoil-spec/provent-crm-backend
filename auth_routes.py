@@ -1,25 +1,30 @@
-from flask import Blueprint, jsonify, request
-from extensions import db
+from flask import Blueprint, request, jsonify
 from models import User
-from passlib.hash import bcrypt
-import jwt
-import os
-from datetime import datetime, timedelta
 
-auth_bp = Blueprint("auth", __name__)
+auth_bp = Blueprint("auth_bp", __name__)
 
-@auth_bp.route("/seed-admin", methods=["POST"])
-def seed_admin():
-    admin = User.query.filter_by(email="admin@provent.co.il").first()
-    if admin:
-        return jsonify({"msg": "Admin already exists"})
 
-    admin = User(
-        email="admin@provent.co.il",
-        full_name="Admin",
-        role="owner",
-        password_hash=bcrypt.hash("Provent-2025!crm")
-    )
-    db.session.add(admin)
-    db.session.commit()
-    return jsonify({"msg": "Admin created"})
+@auth_bp.route("/login", methods=["POST"])
+def login():
+    data = request.get_json() or {}
+    email = data.get("email")
+    password = data.get("password")
+
+    if not email or not password:
+        return jsonify({"message": "חסר אימייל או סיסמה"}), 400
+
+    user = User.query.filter_by(email=email).first()
+    if not user or not user.check_password(password):
+        return jsonify({"message": "שם משתמש או סיסמה לא נכונים"}), 401
+
+    # לא משתמשים כרגע ב-JWT – רק מחזירים תשובה מוצלחת
+    return jsonify({
+        "message": "התחברות הצליחה",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user.role,
+        },
+        "token": "dummy-token"  # אם הפרונט מצפה לאיזה שדה token
+    }), 200
