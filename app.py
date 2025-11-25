@@ -1,6 +1,5 @@
 from flask import Flask
 from flask_cors import CORS
-from config import Config
 from extensions import init_db
 from auth_routes import auth_bp
 from clients_routes import clients_bp
@@ -10,8 +9,6 @@ from uploads_routes import uploads_bp
 
 def create_app():
     app = Flask(__name__)
-    app.config.from_object(Config)
-
     CORS(app, supports_credentials=True)
 
     init_db(app)
@@ -25,6 +22,3 @@ def create_app():
     return app
 
 app = create_app()
-
-if __name__ == "__main__":
-    app.run(debug=True)
